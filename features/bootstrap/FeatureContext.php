@@ -6,12 +6,14 @@ use Behat\Gherkin\Node\TableNode;
 use Behat\Behat\Tester\Exception\PendingException;
 
 use Webmozart\Assert\Assert;
+use Helmich\JsonAssert\JsonAssertions;
 
 /**
  * Defines application features from the specific context.
  */
 class FeatureContext implements Context
 {
+    use JsonAssertions;
 
     protected $returnedHttpResponse = null;
     protected $returnedHttpErrorMessage = null;
@@ -80,24 +82,48 @@ class FeatureContext implements Context
         $json = json_decode($this->returnedHttpResponse);
         $error = json_last_error_msg();
         Assert::notNull($json, "Returned HTTP response can not be decoded as JSON. Error message: ${error}");
-        # TODO Is it extra assertion ?
-        Assert::isEmpty($error, "Error message has appeared during JSON decoding: ${error}");
+    }
+
+
+    /**
+     * @Given /^Returned HTTP response should match "([^"]*)" JSON schema$/
+     */
+    public function returnedHTTPResponseShouldMatchJSONSchema($jsonSchemaName)
+    {
+        $this->assertJsonDocumentMatchesSchema(json_decode($this->returnedHttpResponse), $this->jsonSchemaRepository($jsonSchemaName));
     }
 
     /**
-     * @Then Returned HTTP response should contains JSON fields:
+     * Returns associative array that represents JSON schema for passed $jsonSchemaName
+     * TODO Should be moved from FeatureContext class
+     *
+     * @param $jsonSchema
      */
-    public function returnedHttpResponseShouldContainsJsonFields(TableNode $table)
+    protected function jsonSchemaRepository($jsonSchemaName)
     {
-        throw new PendingException();
-    }
 
-    /**
-     * @Then Specified JSON fields in returned HTTP response should not be empty:
-     */
-    public function specifiedJsonFieldsInReturnedHttpResponseShouldNotBeEmpty(TableNode $table)
-    {
-        throw new PendingException();
+        $returnedSchema = null;
+        switch ($jsonSchemaName)
+        {
+            case 'valid_oauth_v2_token_response_json_schema':
+                $returnedSchema = [
+                    'type' => 'object',
+                    'required' => ['access_token', 'expires_in', 'token_type', 'scope', 'refresh_token'],
+                    'properties' => [
+                        'access_token' => ['type' => 'string'],
+                        'expires_in'   => ['type' => 'integer'],
+                        'token_type'   => ['type' => 'string'],
+                        'scope'   => ['type' => 'string'],
+                        'refresh_token'   => ['type' => 'string'],
+                    ]
+                ];
+                break;
+            default:
+               throw new InvalidArgumentException("Unknown jsonSchemaName was passed: $jsonSchemaName");
+
+        }
+        return $returnedSchema;
+
     }
 
 }
