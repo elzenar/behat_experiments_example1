@@ -1,6 +1,7 @@
 <?php
 
-use Behat\Behat\Context\Context;
+use Behat\MinkExtension\Context\MinkContext;
+
 //use Behat\Gherkin\Node\PyStringNode;
 //use Behat\Gherkin\Node\TableNode;
 use Behat\Behat\Tester\Exception\PendingException;
@@ -11,7 +12,7 @@ use Helmich\JsonAssert\JsonAssertions;
 /**
  * Defines application features from the specific context.
  */
-class FeatureContext implements Context
+class FeatureContext extends MinkContext
 {
     use JsonAssertions;
 
@@ -293,6 +294,8 @@ class FeatureContext implements Context
     public function openIntoWebBrowser($arg1)
     {
 
+        $this->getSession()->visit($this->lastReturnedRedirectUrl);
+        sleep(20);
         throw new PendingException();
     }
 

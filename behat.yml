@@ -1,0 +1,15 @@
+default:
+  suites:
+    default:
+      contexts:
+        - FeatureContext
+  extensions:
+#    SensioLabs\Behat\PageObjectExtension: ~
+    Behat\MinkExtension:
+#      base_url:  'https://localhost'
+      sessions:
+        default:
+          selenium2:
+            wd_host: 'http://127.0.0.1:4444/wd/hub'
+            browser: 'chrome'
+            capabilities: {"browserName": "chrome", "browser": "chrome", "browserVersion": "ANY", "version": "ANY"}
