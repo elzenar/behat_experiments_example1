@@ -18,6 +18,10 @@ class FeatureContext implements Context
     protected $returnedHttpResponse = null;
     protected $returnedHttpErrorMessage = null;
 
+    protected $lastAuthorizedAccessToken = null;
+
+    protected $lastReturnedRedirectUrl = null;
+
     const BASE_URL = 'https://sandbox.payever.de';
 
     /**
@@ -46,7 +50,6 @@ class FeatureContext implements Context
      */
     public function restClientSendRequestToOauthV2TokenUsingDataset($datasetName)
     {
-        $curl = curl_init();
         $related_path = "/oauth/v2/token";
         $curl_options = array(
             CURLOPT_URL => self::BASE_URL . $related_path,
@@ -54,11 +57,7 @@ class FeatureContext implements Context
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_POSTFIELDS => $this->getDataset($datasetName),
         );
-        curl_setopt_array($curl, $curl_options);
-        $this->returnedHttpResponse = curl_exec($curl);
-        $this->returnedHttpErrorMessage = curl_error($curl);
-        curl_close($curl);
-
+        $this->curl_send_request($curl_options);
     }
 
     /**
@@ -125,6 +124,16 @@ class FeatureContext implements Context
                     ]
                 ];
                 break;
+            case 'valid_api_payment_response_json_schema':
+                $returnedSchema = [
+                    'type' => 'object',
+                    'required' => ['call', 'redirect_url'],
+                    'properties' => [
+                        'access_token' => ['type' => 'object'],
+                        'redirect_url'   => ['type' => 'string', 'format' => 'uri'],
+                    ]
+                ];
+                break;
             default:
                throw new InvalidArgumentException("Unknown jsonSchemaName was passed: $jsonSchemaName");
         }
@@ -176,6 +185,115 @@ class FeatureContext implements Context
                 throw new InvalidArgumentException("Unknown datasetName was passed: $datasetName");
         }
         return $returnedDataset;
+    }
+
+
+    /**
+     * @Given /^RestClient: authorize through \/oauth\/v2\/token$/
+     */
+    public function restclientAuthorizeThroughOauthV2Token()
+    {
+        $this->restClientSendRequestToOauthV2TokenUsingDataset('valid_request_to_oauth_v2_token');
+        $json = json_decode($this->returnedHttpResponse);
+        $this->lastAuthorizedAccessToken = $json->access_token;
+        if (!$this->lastAuthorizedAccessToken) {
+            throw new RuntimeException("Error happened during authorization through /oauth/v2/token: $this->returnedHttpErrorMessage");
+        }
+    }
+
+    /**
+     * @When /^RestClient: send valid request to \/api\/payment$/
+     */
+    public function restclientSendValidRequestToApiPayment()
+    {
+
+
+        $cart = array(
+            array(
+                'name' => 'Some article',
+                'price' => '15',
+                'priceNetto' => '15',
+                'vatRate' => '10',
+                'quantity' => '3',
+                'description' => 'The new article',
+                'thumbnail' => 'https://someitem.com/thumbnail.jpg',
+                'sku' => '123',
+            ),
+            array(
+                'name' => 'Some item',
+                'price' => '15',
+                'priceNetto' => '15',
+                'vatRate' => '10',
+                'quantity' => '3',
+                'description' => 'The new item in black',
+                'thumbnail' => 'https://someitem.com/thumbnail',
+                'sku' => '124',
+            )
+        );
+        $params = array(
+            'channel' => 'other_shopsystem',
+            'amount' => '100',
+            'fee' => '10',
+            'order_id' => '900001291100',
+            'currency' => 'USD',
+            'cart' => json_encode($cart),
+            'salutation' => 'mr',
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'city' => 'New York',
+            'zip' => '10019',
+            'street' => '5th Ave, 342',
+            'country' => 'US',
+            'email' => 'john@payever.de',
+            'phone' => '+1 (800) 123756',
+            'success_url' => 'https://www.you.shop.tld/callback/success/--PAYMENT-ID--\call_id/--CALL-ID--',
+            'failure_url' => 'https://www.you.shop.tld/callback/failure/--PAYMENT-ID--\call_id/--CALL-ID--',
+            'cancel_url' => 'https://www.you.shop.tld/callback/notice/--PAYMENT-ID--\call_id/--CALL-ID--',
+            'notice_url' => 'https://www.you.shop.tld/callback/success/--PAYMENT-ID--\call_id/--CALL-ID--',
+            'pending_url' => 'https://www.you.shop.tld/callback/pending/--PAYMENT-ID--\call_id/--CALL-ID--',
+            'x_frame_host' => 'https://your.shop.tld,',
+        );
+
+        $related_path = '/api/payment';
+        $curl_options = array(
+            CURLOPT_URL => self::BASE_URL . $related_path,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $params,
+            CURLOPT_HTTPHEADER => array(
+                "Authorization: Bearer $this->lastAuthorizedAccessToken"
+            )
+        );
+
+        $this->curl_send_request($curl_options);
+        $json = json_decode($this->returnedHttpResponse);
+
+        $this->lastReturnedRedirectUrl = $json->redirect_url;
+        if (!$this->lastReturnedRedirectUrl) {
+            throw new RuntimeException("'redirect_url' was not received after calling /api/payment : $this->returnedHttpErrorMessage");
+        }
+    }
+
+    /**
+     * @param $curl_options
+     */
+    protected function curl_send_request($curl_options)
+    {
+        $curl = curl_init();
+        curl_setopt_array($curl, $curl_options);
+        $this->returnedHttpResponse = curl_exec($curl);
+        $this->returnedHttpErrorMessage = curl_error($curl);
+        curl_close($curl);
+    }
+
+    /**
+     * @When /^Open \'([^\']*)\' into web browser$/
+     */
+    public function openIntoWebBrowser($arg1)
+    {
+
+        throw new PendingException();
     }
 
 }
